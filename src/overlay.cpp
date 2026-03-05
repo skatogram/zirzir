@@ -10,6 +10,13 @@
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+namespace GameState {
+    extern bool espEnabled;
+    extern bool boxEsp;
+    extern bool snaplines;
+    extern bool skeletonEsp;
+}
+
 namespace Overlay {
     HWND hwnd = nullptr;
     int width = 1920;
@@ -160,13 +167,6 @@ namespace Overlay {
 
             if (ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) {
                 // Link this to main.cpp GameState mock logic
-                namespace GameState {
-                    extern bool espEnabled; 
-                    extern bool boxEsp;
-                    extern bool snaplines;
-                    extern bool skeletonEsp;
-                }
-                
                 ImGui::Checkbox("Enable ESP", &GameState::espEnabled);
                 if (GameState::espEnabled) {
                     ImGui::Indent();
