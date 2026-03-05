@@ -23,8 +23,13 @@ namespace GameState {
     extern bool boxEsp;
     extern bool skeletonEsp;
     extern bool snaplines;
+    extern bool healthEsp;
+    extern bool distanceEsp;
     extern bool aimbot;
     extern bool silentAim;
+    extern bool ignoreDead;
+    extern bool teamCheck;
+    extern bool aimPrediction;
     extern float aimSmooth;
     extern float aimFov;
     extern int aimBone;

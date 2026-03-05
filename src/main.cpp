@@ -13,8 +13,13 @@ namespace GameState {
     bool boxEsp = true;
     bool skeletonEsp = true;
     bool snaplines = false;
+    bool healthEsp = true;
+    bool distanceEsp = true;
     bool aimbot = true;
     bool silentAim = false;
+    bool ignoreDead = true;
+    bool teamCheck = true;
+    bool aimPrediction = true;
     float aimSmooth = 5.0f;
     float aimFov = 300.0f;
     int aimBone = 8;
@@ -326,12 +331,28 @@ int main() {
             float screenCenterX = width / 2.0f;
             float screenCenterY = height / 2.0f;
 
+            uint8_t myTeam = 255;
+            if (localPawn) {
+                myTeam = ReadMem<uint8_t>(localPawn + 0x0518);
+            }
+
             float closestDistance = FLT_MAX;
             FRotator targetRotation = {0};
             bool hasTarget = false;
 
             if (GameState::aimbot) {
                 drawList->AddCircle(ImVec2(screenCenterX, screenCenterY), GameState::aimFov, ImColor(255, 255, 255, 100), 64, 1.0f);
+            }
+
+            float bulletSpeed = 0.0f;
+            if (GameState::aimbot && GameState::aimPrediction && localPawn) {
+                uintptr_t ps = ReadMem<uintptr_t>(localPawn + APawn_PlayerState);
+                if (ps) {
+                    uintptr_t weaponAttrSet = ReadMem<uintptr_t>(ps + 0x0350);
+                    if (weaponAttrSet) {
+                        bulletSpeed = ReadMem<float>(weaponAttrSet + 0x0054);
+                    }
+                }
             }
 
             for (int i = 0; i < actorsCount; ++i) {
@@ -346,6 +367,20 @@ int main() {
 
                 uintptr_t rootComponent = ReadMem<uintptr_t>(actor + AActor_RootComponent);
                 if (!rootComponent) continue;
+
+                bool isDead = ReadMem<bool>(actor + 0x0508);
+                uint8_t team = ReadMem<uint8_t>(actor + 0x0518);
+
+                if (GameState::ignoreDead && isDead) continue;
+                if (GameState::teamCheck && localPawn && myTeam != 255 && myTeam == team) continue;
+
+                // Read Health
+                float health = 100.0f, maxHealth = 100.0f;
+                uintptr_t attrSet = ReadMem<uintptr_t>(playerState + 0x0348);
+                if (attrSet) {
+                    health = ReadMem<float>(attrSet + 0x0068 + 4);
+                    maxHealth = ReadMem<float>(attrSet + 0x0088 + 4);
+                }
 
                 uintptr_t mesh = ReadMem<uintptr_t>(actor + ACharacter_Mesh);
 
@@ -363,8 +398,29 @@ int main() {
                         float boxLeft = sRoot.X - (boxWidth / 2.0f);
                         float boxTop = sHead.Y - (boxHeight * 0.15f); // slight offset over head
 
+                        FVector vDelta = { headLoc.X - camLoc.X, headLoc.Y - camLoc.Y, headLoc.Z - camLoc.Z };
+                        float distance3D = sqrtf(vDelta.X * vDelta.X + vDelta.Y * vDelta.Y + vDelta.Z * vDelta.Z);
+
                         if (GameState::boxEsp) {
                             drawList->AddRect(ImVec2(boxLeft, boxTop), ImVec2(boxLeft + boxWidth, boxTop + boxHeight), ImColor(0, 255, 0), 0, 0, 1.5f);
+                        }
+
+                        if (GameState::healthEsp) {
+                            float hpPercent = (maxHealth > 0.0f) ? (health / maxHealth) : 1.0f;
+                            if (hpPercent < 0.0f) hpPercent = 0.0f;
+                            if (hpPercent > 1.0f) hpPercent = 1.0f;
+                            
+                            float barWidth = 4.0f;
+                            float barLeft = boxLeft - barWidth - 4.0f;
+                            
+                            drawList->AddRectFilled(ImVec2(barLeft, boxTop), ImVec2(barLeft + barWidth, boxTop + boxHeight), ImColor(0, 0, 0, 150));
+                            drawList->AddRectFilled(ImVec2(barLeft, boxTop + boxHeight - (boxHeight * hpPercent)), ImVec2(barLeft + barWidth, boxTop + boxHeight), ImColor((int)(255 * (1.0f - hpPercent)), (int)(255 * hpPercent), 0, 255));
+                        }
+
+                        if (GameState::distanceEsp) {
+                            char distStr[32];
+                            snprintf(distStr, sizeof(distStr), "%.1fm", distance3D / 100.0f);
+                            drawList->AddText(ImVec2(boxLeft + (boxWidth / 2.0f) - 10.0f, boxTop + boxHeight + 2.0f), ImColor(255, 255, 255), distStr);
                         }
 
                         if (GameState::snaplines) {
@@ -396,17 +452,29 @@ int main() {
                             }
                         }
 
-                        // Aimbot target selection
                         if (GameState::aimbot) {
                             float dist = GetDistance2D(screenCenterX, screenCenterY, sHead.X, sHead.Y);
                             if (dist < GameState::aimFov && dist < closestDistance) {
+                                
+                                FVector aimPos = headLoc;
+                                
+                                if (GameState::aimPrediction && bulletSpeed > 100.0f) {
+                                    uintptr_t movementComp = ReadMem<uintptr_t>(actor + 0x0288);
+                                    if (movementComp) {
+                                        FVector targetVel = ReadMem<FVector>(movementComp + 0x00C4);
+                                        float travelTime = distance3D / bulletSpeed;
+                                        aimPos.X += targetVel.X * travelTime;
+                                        aimPos.Y += targetVel.Y * travelTime;
+                                        aimPos.Z += targetVel.Z * travelTime;
+                                    }
+                                }
+
+                                FVector delta = { aimPos.X - camLoc.X, aimPos.Y - camLoc.Y, aimPos.Z - camLoc.Z };
+                                float dist3D = sqrtf(delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z);
+
                                 closestDistance = dist;
-                                
-                                FVector vDelta = { headLoc.X - camLoc.X, headLoc.Y - camLoc.Y, headLoc.Z - camLoc.Z };
-                                float distance3D = sqrtf(vDelta.X * vDelta.X + vDelta.Y * vDelta.Y + vDelta.Z * vDelta.Z);
-                                
-                                targetRotation.Pitch = asinf(vDelta.Z / distance3D) * (180.0f / M_PI);
-                                targetRotation.Yaw = atan2f(vDelta.Y, vDelta.X) * (180.0f / M_PI);
+                                targetRotation.Pitch = asinf(delta.Z / dist3D) * (180.0f / M_PI);
+                                targetRotation.Yaw = atan2f(delta.Y, delta.X) * (180.0f / M_PI);
                                 targetRotation.Roll = 0;
 
                                 hasTarget = true;

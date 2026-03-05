@@ -173,12 +173,17 @@ namespace Overlay {
                     ImGui::Checkbox("Box ESP", &GameState::boxEsp);
                     ImGui::Checkbox("Snaplines", &GameState::snaplines);
                     ImGui::Checkbox("Skeleton ESP", &GameState::skeletonEsp);
+                    ImGui::Checkbox("Health ESP", &GameState::healthEsp);
+                    ImGui::Checkbox("Distance ESP", &GameState::distanceEsp);
                     ImGui::Unindent();
                 }
             }
             if (ImGui::CollapsingHeader("Aimbot")) {
                 ImGui::Checkbox("Enable Aimbot", &GameState::aimbot);
                 ImGui::Checkbox("Silent Aim", &GameState::silentAim);
+                ImGui::Checkbox("Ignore Dead", &GameState::ignoreDead);
+                ImGui::Checkbox("Team Check", &GameState::teamCheck);
+                ImGui::Checkbox("Prediction", &GameState::aimPrediction);
                 ImGui::SliderFloat("FOV", &GameState::aimFov, 1.0f, 1000.0f);
                 if (!GameState::silentAim) {
                     ImGui::SliderFloat("Smoothing", &GameState::aimSmooth, 1.0f, 50.0f);
@@ -210,6 +215,6 @@ namespace Overlay {
         g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, clear_color_with_alpha);
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-        g_pSwapChain->Present(1, 0);
+        g_pSwapChain->Present(0, 0);
     }
 }
