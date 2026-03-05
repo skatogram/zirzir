@@ -329,7 +329,7 @@ int main() {
             float fov = ReadMem<float>(cameraManager + APlayerCameraManager_CameraCachePrivate + 0x10 + 0x18);
 
             uintptr_t gameState = ReadMem<uintptr_t>(UWorld + 0x120);
-            if (!gameState) return; // Fallback or wait
+            if (!gameState) continue; // Fallback or wait
             
             TArray playerArray = ReadMem<TArray>(gameState + 0x238);
             int actorsCount = playerArray.Count;
