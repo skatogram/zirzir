@@ -24,6 +24,8 @@ namespace GameState {
     extern bool skeletonEsp;
     extern bool snaplines;
     extern bool aimbot;
+    extern bool silentAim;
     extern float aimSmooth;
     extern float aimFov;
+    extern int aimBone;
 }

@@ -14,8 +14,10 @@ namespace GameState {
     bool skeletonEsp = true;
     bool snaplines = false;
     bool aimbot = true;
+    bool silentAim = false;
     float aimSmooth = 5.0f;
-    float aimFov = 100.0f;
+    float aimFov = 300.0f;
+    int aimBone = 8;
 }
 
 // Memory Utilities
@@ -348,7 +350,7 @@ int main() {
                 uintptr_t mesh = ReadMem<uintptr_t>(actor + ACharacter_Mesh);
 
                 if (GameState::espEnabled && mesh) {
-                    FVector headLoc = GetBoneWithRotation(mesh, 8); // Usually head is 8 or 15 in UE4. UpGun skeletal default fits standard.
+                    FVector headLoc = GetBoneWithRotation(mesh, GameState::aimBone);
                     FVector rootLoc = GetBoneWithRotation(mesh, 0);
 
                     FVector sHead, sRoot;
@@ -403,7 +405,7 @@ int main() {
                                 FVector vDelta = { headLoc.X - camLoc.X, headLoc.Y - camLoc.Y, headLoc.Z - camLoc.Z };
                                 float distance3D = sqrtf(vDelta.X * vDelta.X + vDelta.Y * vDelta.Y + vDelta.Z * vDelta.Z);
                                 
-                                targetRotation.Pitch = -asinf(vDelta.Z / distance3D) * (180.0f / M_PI);
+                                targetRotation.Pitch = asinf(vDelta.Z / distance3D) * (180.0f / M_PI);
                                 targetRotation.Yaw = atan2f(vDelta.Y, vDelta.X) * (180.0f / M_PI);
                                 targetRotation.Roll = 0;
 
@@ -414,34 +416,37 @@ int main() {
                 }
             }
 
-            // Apply Aimbot
-            if (GameState::aimbot && hasTarget && (GetAsyncKeyState(VK_RBUTTON) & 0x8000)) {
-                
-                // Smoothing
-                FRotator smRot = camRot;
-                if (GameState::aimSmooth > 1.0f) {
-                    FRotator delta;
-                    delta.Pitch = targetRotation.Pitch - camRot.Pitch;
-                    delta.Yaw = targetRotation.Yaw - camRot.Yaw;
-                    
-                    // Normalize angles
-                    if (delta.Yaw > 180.0f) delta.Yaw -= 360.0f;
-                    if (delta.Yaw < -180.0f) delta.Yaw += 360.0f;
-                    if (delta.Pitch > 180.0f) delta.Pitch -= 360.0f;
-                    if (delta.Pitch < -180.0f) delta.Pitch += 360.0f;
+            bool isShooting = (GetAsyncKeyState(VK_LBUTTON) & 0x8000);
+            bool isAiming = (GetAsyncKeyState(VK_RBUTTON) & 0x8000);
 
-                    smRot.Pitch += delta.Pitch / GameState::aimSmooth;
-                    smRot.Yaw += delta.Yaw / GameState::aimSmooth;
-                } else {
-                    smRot = targetRotation;
+            // Apply Aimbot
+            if (GameState::aimbot && hasTarget) {
+                bool shouldAim = isAiming;
+                if (GameState::silentAim) {
+                    shouldAim = isShooting; // Silent aim only snaps view while firing
                 }
 
-                if (playerController) {
-                    uintptr_t ControlRotationAddr = playerController + 0x2A4; // Typical APawn ControlRotation offset. But typically in PlayerController it's slightly higher than AcknowledgedPawn.
-                    // Wait, ControlRotation is usually in PlayerController + 0x288 or similar.
-                    // Instead, let's write to CameraManager or just the ControlRotation
-                    // Usually PlayerController->ControlRotation is somewhere near AcknowledgedPawn (0x2A0). Actually it's 0x288 in many UE4 versions. Let's write directly.
-                    WriteMemRot(playerController + 0x288, smRot);
+                if (shouldAim) {
+                    FRotator outRot = targetRotation;
+                    
+                    if (!GameState::silentAim && GameState::aimSmooth > 1.0f) {
+                        outRot = camRot;
+                        FRotator delta;
+                        delta.Pitch = targetRotation.Pitch - camRot.Pitch;
+                        delta.Yaw = targetRotation.Yaw - camRot.Yaw;
+                        
+                        if (delta.Yaw > 180.0f) delta.Yaw -= 360.0f;
+                        if (delta.Yaw < -180.0f) delta.Yaw += 360.0f;
+                        if (delta.Pitch > 180.0f) delta.Pitch -= 360.0f;
+                        if (delta.Pitch < -180.0f) delta.Pitch += 360.0f;
+
+                        outRot.Pitch += delta.Pitch / GameState::aimSmooth;
+                        outRot.Yaw += delta.Yaw / GameState::aimSmooth;
+                    }
+
+                    if (playerController) {
+                        WriteMemRot(playerController + 0x288, outRot);
+                    }
                 }
             }
 

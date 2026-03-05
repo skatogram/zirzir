@@ -176,11 +176,21 @@ namespace Overlay {
                     ImGui::Unindent();
                 }
             }
-            
             if (ImGui::CollapsingHeader("Aimbot")) {
                 ImGui::Checkbox("Enable Aimbot", &GameState::aimbot);
+                ImGui::Checkbox("Silent Aim", &GameState::silentAim);
                 ImGui::SliderFloat("FOV", &GameState::aimFov, 1.0f, 1000.0f);
-                ImGui::SliderFloat("Smoothing", &GameState::aimSmooth, 1.0f, 50.0f);
+                if (!GameState::silentAim) {
+                    ImGui::SliderFloat("Smoothing", &GameState::aimSmooth, 1.0f, 50.0f);
+                }
+                const char* bones[] = { "Head (8)", "Neck (7)", "Chest (6)", "Pelvis (1)" };
+                static int boneSelection = 0;
+                if (ImGui::Combo("Aim Bone", &boneSelection, bones, IM_ARRAYSIZE(bones))) {
+                    if (boneSelection == 0) GameState::aimBone = 8;
+                    else if (boneSelection == 1) GameState::aimBone = 7;
+                    else if (boneSelection == 2) GameState::aimBone = 6;
+                    else if (boneSelection == 3) GameState::aimBone = 1;
+                }
             }
             
             if (ImGui::CollapsingHeader("Misc")) {
