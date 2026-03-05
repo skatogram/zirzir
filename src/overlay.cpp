@@ -8,6 +8,8 @@
 
 #pragma comment(lib, "d3d11.lib")
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 namespace Overlay {
     HWND hwnd = nullptr;
     int width = 1920;
@@ -18,8 +20,6 @@ namespace Overlay {
     ID3D11DeviceContext* g_pd3dDeviceContext = nullptr;
     IDXGISwapChain* g_pSwapChain = nullptr;
     ID3D11RenderTargetView* g_mainRenderTargetView = nullptr;
-
-    extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -160,17 +160,19 @@ namespace Overlay {
 
             if (ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) {
                 // Link this to main.cpp GameState mock logic
-                extern bool espEnabled; 
-                extern bool boxEsp;
-                extern bool snaplines;
-                extern bool skeletonEsp;
+                namespace GameState {
+                    extern bool espEnabled; 
+                    extern bool boxEsp;
+                    extern bool snaplines;
+                    extern bool skeletonEsp;
+                }
                 
-                ImGui::Checkbox("Enable ESP", &espEnabled);
-                if (espEnabled) {
+                ImGui::Checkbox("Enable ESP", &GameState::espEnabled);
+                if (GameState::espEnabled) {
                     ImGui::Indent();
-                    ImGui::Checkbox("Box ESP", &boxEsp);
-                    ImGui::Checkbox("Snaplines", &snaplines);
-                    ImGui::Checkbox("Skeleton ESP", &skeletonEsp);
+                    ImGui::Checkbox("Box ESP", &GameState::boxEsp);
+                    ImGui::Checkbox("Snaplines", &GameState::snaplines);
+                    ImGui::Checkbox("Skeleton ESP", &GameState::skeletonEsp);
                     ImGui::Unindent();
                 }
             }
