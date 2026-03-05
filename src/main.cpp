@@ -20,6 +20,8 @@ namespace GameState {
     bool ignoreDead = true;
     bool teamCheck = true;
     bool aimPrediction = true;
+    bool autoShoot = false;
+    bool wallCheck = false;
     float aimSmooth = 5.0f;
     float aimFov = 300.0f;
     int aimBone = 8;
@@ -64,7 +66,11 @@ constexpr uintptr_t APlayerState_PawnPrivate = 0x280;
 
 constexpr uintptr_t ACharacter_Mesh = 0x280; // from SDK Dump
 constexpr uintptr_t USkeletalMeshComponent_CachedBoneSpaceTransforms = 0x730; 
-constexpr uintptr_t USkinnedMeshComponent_BoneArray = 0x4A0; // Usually inside Pad_4A0
+constexpr uintptr_t USkinnedMeshComponent_BoneArray = 0x4A0; 
+constexpr uintptr_t USkinnedMeshComponent_bRecentlyRendered = 0x5F7; // bit index 0x06
+
+constexpr uintptr_t APlayerController_ControlRotation = 0x288;
+constexpr uintptr_t APlayerCameraManager_POVRotation = 0x1ABC; // 0x1AA0 (Cache) + 0x10 (POV) + 0x0C (Rot)
 
 HANDLE hProcess = nullptr;
 uintptr_t baseAddr = 0;
@@ -322,9 +328,11 @@ int main() {
             FRotator camRot = ReadMem<FRotator>(cameraManager + APlayerCameraManager_CameraCachePrivate + 0x10 + 0xC);
             float fov = ReadMem<float>(cameraManager + APlayerCameraManager_CameraCachePrivate + 0x10 + 0x18);
 
-            uintptr_t persistentLevel = ReadMem<uintptr_t>(UWorld + UWorld_PersistentLevel);
-            uintptr_t actorsArray = ReadMem<uintptr_t>(persistentLevel + ULevel_Actors);
-            int actorsCount = ReadMem<int>(persistentLevel + ULevel_Actors + 8);
+            uintptr_t gameState = ReadMem<uintptr_t>(UWorld + 0x120);
+            if (!gameState) return; // Fallback or wait
+            
+            TArray playerArray = ReadMem<TArray>(gameState + 0x238);
+            int actorsCount = playerArray.Count;
 
             ImDrawList* drawList = ImGui::GetBackgroundDrawList();
 
@@ -356,14 +364,11 @@ int main() {
             }
 
             for (int i = 0; i < actorsCount; ++i) {
-                uintptr_t actor = ReadMem<uintptr_t>(actorsArray + (i * 8));
-                if (!actor || actor == localPawn) continue;
-
-                uintptr_t playerState = ReadMem<uintptr_t>(actor + APawn_PlayerState);
+                uintptr_t playerState = ReadMem<uintptr_t>(playerArray.Data + (i * 8));
                 if (!playerState) continue;
 
-                uintptr_t pawnPrivate = ReadMem<uintptr_t>(playerState + APlayerState_PawnPrivate);
-                if (pawnPrivate != actor) continue;
+                uintptr_t actor = ReadMem<uintptr_t>(playerState + 0x280); // PawnPrivate
+                if (!actor || actor == localPawn) continue;
 
                 uintptr_t rootComponent = ReadMem<uintptr_t>(actor + AActor_RootComponent);
                 if (!rootComponent) continue;
@@ -374,6 +379,15 @@ int main() {
                 if (GameState::ignoreDead && isDead) continue;
                 if (GameState::teamCheck && localPawn && myTeam != 255 && myTeam == team) continue;
 
+                uintptr_t mesh = ReadMem<uintptr_t>(actor + ACharacter_Mesh);
+                if (!mesh) continue;
+
+                if (GameState::wallCheck) {
+                    uint8_t bRecentlyRendered = ReadMem<uint8_t>(mesh + USkinnedMeshComponent_bRecentlyRendered);
+                    bool isVisible = (bRecentlyRendered & (1 << 6)) != 0;
+                    if (!isVisible) continue;
+                }
+
                 // Read Health
                 float health = 100.0f, maxHealth = 100.0f;
                 uintptr_t attrSet = ReadMem<uintptr_t>(playerState + 0x0348);
@@ -382,9 +396,8 @@ int main() {
                     maxHealth = ReadMem<float>(attrSet + 0x0088 + 4);
                 }
 
-                uintptr_t mesh = ReadMem<uintptr_t>(actor + ACharacter_Mesh);
 
-                if (GameState::espEnabled && mesh) {
+                if (GameState::espEnabled) {
                     FVector headLoc = GetBoneWithRotation(mesh, GameState::aimBone);
                     FVector rootLoc = GetBoneWithRotation(mesh, 0);
 
@@ -489,33 +502,41 @@ int main() {
 
             // Apply Aimbot
             if (GameState::aimbot && hasTarget) {
-                bool shouldAim = isAiming;
                 if (GameState::silentAim) {
-                    shouldAim = isShooting; // Silent aim only snaps view while firing
-                }
-
-                if (shouldAim) {
-                    FRotator outRot = targetRotation;
+                    // Write Target Rotation to ControlRotation (Server knows we look here)
+                    WriteMemRot(playerController + APlayerController_ControlRotation, targetRotation);
                     
-                    if (!GameState::silentAim && GameState::aimSmooth > 1.0f) {
-                        outRot = camRot;
-                        FRotator delta;
-                        delta.Pitch = targetRotation.Pitch - camRot.Pitch;
-                        delta.Yaw = targetRotation.Yaw - camRot.Yaw;
-                        
-                        if (delta.Yaw > 180.0f) delta.Yaw -= 360.0f;
-                        if (delta.Yaw < -180.0f) delta.Yaw += 360.0f;
-                        if (delta.Pitch > 180.0f) delta.Pitch -= 360.0f;
-                        if (delta.Pitch < -180.0f) delta.Pitch += 360.0f;
-
-                        outRot.Pitch += delta.Pitch / GameState::aimSmooth;
-                        outRot.Yaw += delta.Yaw / GameState::aimSmooth;
+                    // Freeze Camera Rotation (Player's screen stays at camRot)
+                    uintptr_t cameraManager = ReadMem<uintptr_t>(playerController + APlayerController_PlayerCameraManager);
+                    if (cameraManager) {
+                        WriteMemRot(cameraManager + APlayerCameraManager_POVRotation, camRot);
                     }
 
-                    if (playerController) {
-                        WriteMemRot(playerController + 0x288, outRot);
+                    // AutoShoot if Target in Sight
+                    if (GameState::autoShoot) {
+                        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
+                        // Briefly hold then release if needed or just spam
+                        // Sleep(10); // Not good in overlay loop
+                        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
                     }
+                } else if (isAiming) {
+                    // Smoothly move view (Normal Aimbot)
+                    FRotator currentRot = camRot;
+                    FRotator delta = { targetRotation.Pitch - currentRot.Pitch, targetRotation.Yaw - currentRot.Yaw, 0 };
+                    
+                    // Normalize angles
+                    if (delta.Yaw > 180.f) delta.Yaw -= 360.f;
+                    if (delta.Yaw < -180.f) delta.Yaw += 360.f;
+
+                    float smooth = (GameState::aimSmooth > 1.0f) ? GameState::aimSmooth : 1.0f;
+                    FRotator finalRot = { currentRot.Pitch + delta.Pitch / smooth, currentRot.Yaw + delta.Yaw / smooth, 0 };
+                    
+                    WriteMemRot(playerController + APlayerController_ControlRotation, finalRot);
                 }
+            } else if (GameState::autoShoot && !hasTarget && isShooting) {
+                // If we want to allow manual shooting while autoShoot is on, we don't need to do anything.
+                // But we should ensure we release mouse button if target lost during autoShoot?
+                // Actually, our autoShoot logic above uses click-per-frame.
             }
 
         }
