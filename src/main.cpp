@@ -4,6 +4,7 @@
 #include <cmath>
 #include <windows.h>
 #include <tlhelp32.h>
+#include <imgui.h>
 
 #define M_PI 3.14159265358979323846f
 
@@ -19,6 +20,7 @@ namespace GameState {
 
 // Memory Utilities
 struct FVector { float X, Y, Z; };
+struct FVector2D { float X, Y; };
 struct FRotator { float Pitch, Yaw, Roll; };
 struct FMatrix { float M[4][4]; };
 struct FTransform {
