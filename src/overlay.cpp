@@ -178,15 +178,9 @@ namespace Overlay {
             }
             
             if (ImGui::CollapsingHeader("Aimbot")) {
-                static bool aimbotEnable = false;
-                static float fov = 30.0f;
-                static int boneIndex = 0;
-                
-                ImGui::Checkbox("Enable Aimbot", &aimbotEnable);
-                ImGui::SliderFloat("FOV", &fov, 1.0f, 180.0f);
-                
-                const char* bones[] = { "Head", "Neck", "Chest", "Pelvis" };
-                ImGui::Combo("Aim Bone", &boneIndex, bones, IM_ARRAYSIZE(bones));
+                ImGui::Checkbox("Enable Aimbot", &GameState::aimbot);
+                ImGui::SliderFloat("FOV", &GameState::aimFov, 1.0f, 1000.0f);
+                ImGui::SliderFloat("Smoothing", &GameState::aimSmooth, 1.0f, 50.0f);
             }
             
             if (ImGui::CollapsingHeader("Misc")) {

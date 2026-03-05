@@ -16,5 +16,14 @@ namespace Overlay {
     extern HWND hwnd;
     extern int width;
     extern int height;
-    extern bool showMenu;
+}
+
+namespace GameState {
+    extern bool espEnabled;
+    extern bool boxEsp;
+    extern bool skeletonEsp;
+    extern bool snaplines;
+    extern bool aimbot;
+    extern float aimSmooth;
+    extern float aimFov;
 }
