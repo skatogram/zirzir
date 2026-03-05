@@ -1,0 +1,57 @@
+name: Build Dumper-7
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # ручной запуск
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        configuration: [Release]
+        platform: [x64]
+
+    steps:
+    # 1. Клонируем репо с сабмодулями
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0
+
+    # 2. Устанавливаем MSBuild
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    # 3. Устанавливаем Visual Studio Build Tools (если нужны доп. компоненты)
+    - name: Setup Visual Studio Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    # 4. Восстанавливаем NuGet пакеты (если есть)
+    - name: Restore NuGet packages
+      run: nuget restore Dumper-7.sln
+      continue-on-error: true
+
+    # 5. Билдим
+    - name: Build Solution
+      run: |
+        msbuild Dumper-7.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /m /verbosity:minimal
+
+    # 6. Загружаем артефакт
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Dumper-7-${{ matrix.platform }}-${{ matrix.configuration }}
+        path: |
+          **/Release/**/*.dll
+          **/x64/Release/**/*.dll
+          **/bin/**/*.dll
+          **/output/**/*.dll
+        if-no-files-found: warn
