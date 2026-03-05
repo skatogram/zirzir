@@ -184,6 +184,8 @@ namespace Overlay {
                 ImGui::Checkbox("Ignore Dead", &GameState::ignoreDead);
                 ImGui::Checkbox("Team Check", &GameState::teamCheck);
                 ImGui::Checkbox("Prediction", &GameState::aimPrediction);
+                ImGui::Checkbox("AutoShoot", &GameState::autoShoot);
+                ImGui::Checkbox("Wall Check", &GameState::wallCheck);
                 ImGui::SliderFloat("FOV", &GameState::aimFov, 1.0f, 1000.0f);
                 if (!GameState::silentAim) {
                     ImGui::SliderFloat("Smoothing", &GameState::aimSmooth, 1.0f, 50.0f);
