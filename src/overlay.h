@@ -30,6 +30,8 @@ namespace GameState {
     extern bool ignoreDead;
     extern bool teamCheck;
     extern bool aimPrediction;
+    extern bool autoShoot;
+    extern bool wallCheck;
     extern float aimSmooth;
     extern float aimFov;
     extern int aimBone;
